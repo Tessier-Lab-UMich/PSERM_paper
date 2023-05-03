@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Sep 21 11:33:12 2022
+
+@author: mduncans@umich.edu
+"""
+
 import os
 import time
 import tqdm
@@ -108,8 +115,12 @@ class ngs_analysis(object):
     # PSSM Functions
     def generate_PSSM(self, sample, pseudocount = 1, background_prob = 1/20, show_plots = False, ppm_only = False, name = None, clone_set = None, excluded_sample = None, use_freq = True):
         '''
-        generate_PSSM creates a Position Specific Scoring Matrix
-        based on the input data for a given sample (column of data matrix)
+        generate_PSSM generates several different matrices
+            1. self.Counts[name] is a dataframe containing the counts of each amino acid at each sampled position without pseudocounts.
+            2. self.PPM[name] is a dataframe containing the relative frequencies of each amino acid at each sampled position with pseudocounts.
+            3. self.PSSM[name] is a log2 transform of self.PPM[name] normalized to the background_prob
+        
+        sample: string, column name of self.D matrix, represents the sample of deep sequencing data to generate the above matrices for.
         '''
         try: 
             self.D
