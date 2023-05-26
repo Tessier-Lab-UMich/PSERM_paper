@@ -12,6 +12,7 @@ import itertools
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.stats import spearmanr
 from multiprocessing import get_context, Manager
 
 #will make use of common_clones function
@@ -34,6 +35,7 @@ class ngs_analysis(object):
                 cc_dict[replicate] = common_rounds
             self.clone_set = common_clones(cc_dict)
         
+        self.mutations_dict = replicates[0].mutations_dict
         self.library = {i: [aa] for i, aa in enumerate(replicates[0].wt)}
         for i, aa_sampled in replicates[0].mutations_dict.items():
             for aa in aa_sampled:
@@ -270,7 +272,15 @@ class ngs_analysis(object):
                 except:
                     self.multi_muts_freq = {num_muts: {name: pd.read_excel(f'{fname}', index_col = 0)}}
                     
-    #Create a load_scores function to load in precomputed scores
+    def load_scores(self, fname):
+        try:
+            self.scores
+            print('You already have computed scores')
+        except:
+            if fname.endswith('.csv'):
+                self.scores = pd.read_csv(fname, index_col = 0)
+            elif fname.endwith('.xlsx'):
+                self.scores = pd.read_excel(fname, index_col = 0)
     
     # INFORMATION FUNCTIONS
     def get_H_pos(self, name):
@@ -701,6 +711,130 @@ class ngs_analysis(object):
                 self.dropped_columns = {name: columns_dropped}
             self.ohe[f'{name}_fixed'] = self.ohe[name].drop(columns_dropped, axis = 1)
 
+    def mutational_analysis(self, num_mutations, er_samples = None, clone_set = None, recalculate = False, input_sample = 'Input'):
+        '''
+        Performs mutational analysis on a ngs_analysis class. 
+
+        Code should be optimized. Specifically creating mut_seqs_dict and wt_seqs_dict. Could probably alter code to find which positions are different from wt
+        and only search mutation sets with the same differences. multiprocessing might also be added.
+        '''
+        
+        #get locations of possible mutations
+        
+        try:
+            self.mutations_dictionary[num_mutations]
+
+            if recalculate:
+                raise ValueError
+        except:
+            mutation_str_length = len(self.wt)
+            mut_loc_dict  = {i: loc for i, loc in enumerate(list(itertools.combinations(list(range(mutation_str_length)), num_mutations)))}
+
+            #create possible mutations dictionary -- Fast
+            mutation_number = 0
+            try:
+                self.mutations_dictionary[num_mutations] = {}
+            except:
+                self.mutations_dictionary = {num_mutations: {}}
+            
+            for loc in tqdm.tqdm(mut_loc_dict.values()):
+                mutations_dictionary_subkey = ''
+                for i in loc:
+                    mutations_dictionary_subkey += str(i) + ','
+                key_list = [i for i in mutations_dictionary_subkey.split(',') if i != '']
+                product_list = [self.mutations_dict[int(j)] for j in key_list]
+                possible_mutations = list(itertools.product(*product_list))
+                for m in possible_mutations:
+                    self.mutations_dictionary[num_mutations][mutation_number] = {mutations_dictionary_subkey: m}
+
+                    mutation_number += 1
+        
+        if clone_set is not None:
+            try:
+                self.mut_seqs[num_mutations]
+                self.wt_sets[num_mutations]
+
+                if recalculate:
+                    raise ValueError
+            except:
+                mut_seqs = {m: [] for m in self.mutations_dictionary[num_mutations].keys()}
+                wt_seqs = {m: [] for m in self.mutations_dictionary[num_mutations].keys()}
+
+                seqs_dict = {}
+                columns = [i for i in range(len(self.wt))]
+                columns.append('seq')
+
+                for i, s in enumerate(clone_set):
+                    for aa in s:
+                        try:
+                            seqs_dict[i].append(aa)
+                        except:
+                            seqs_dict[i] = [aa]
+                    seqs_dict[i].append(s)
+
+                clone_df = pd.DataFrame.from_dict(seqs_dict, orient = 'index', columns = columns)
+                
+                #This is slow... Turns out updating self.mut_seqs[num_mutations][m] = clone_df.loc[mut_mask].loc[:, 'seq'] is way slower
+                # than just updating a local mut_seqs dictionary...
+                for m, mut_dict in tqdm.tqdm(self.mutations_dictionary[num_mutations].items()):
+                    loc, muts = list(mut_dict.items())[0]
+                    pos = [int(i) for i in loc.split(',')[0:-1]]
+                    wts = [self.wt[i] for i in pos]
+
+                    mut_mask = True
+                    for i, p in enumerate(pos):
+                        mut_mask = mut_mask & (clone_df[p] == muts[i])
+                    
+                    wt_mask = True
+                    for i, p in enumerate(pos):
+                        wt_mask = wt_mask & (clone_df[p] == wts[i])
+
+                    mut_seqs[m] = clone_df.loc[mut_mask].loc[:, 'seq'].tolist()
+                    wt_seqs[m] = clone_df.loc[wt_mask].loc[:, 'seq'].tolist()
+
+                try:
+                    self.mut_seqs[num_mutations] = mut_seqs
+                    self.wt_seqs[num_mutations] = wt_seqs
+                except:
+                    self.mut_seqs = {num_mutations: mut_seqs}
+                    self.wt_seqs = {num_mutations: wt_seqs}
+
+            if er_samples is not None:
+                try:
+                    self.spearman_coefficients[num_mutations]
+                    if recalculate:
+                        raise ValueError
+                except:
+                    #calculate spearman info
+                    try:
+                        self.spearman_coefficients[num_mutations] = {}
+                    except:
+                        self.spearman_coefficients = {num_mutations: {}}
+
+                    #ER = pd.DataFrame({c: np.log2(self.D.loc[clone_set, c] / self.D.loc[clone_set, input_sample]) for c in er_samples})
+                    ER = {seq: [np.log2(self.D.loc[seq, c] / self.D.loc[seq, input_sample]) for c in er_samples] for seq in clone_set}
+                    for index, sample in tqdm.tqdm(enumerate(er_samples), total = len(er_samples)):
+                        self.spearman_coefficients[num_mutations][sample] = {}
+                        for m in self.mutations_dictionary[num_mutations].keys(): 
+                            data = {}
+                            for seq in self.mut_seqs[num_mutations][m]:
+                                try:
+                                    data[ER[seq][index]][0] += 1
+                                except:
+                                    data[ER[seq][index]] = [1, 0]
+                            for seq in self.wt_seqs[num_mutations][m]:
+                                try:
+                                    data[ER[seq][index]][1] += 1
+                                except:
+                                    data[ER[seq][index]] = [0, 1]
+
+                            er_data = []
+                            freq_data = []
+                            for e, nums in data.items():
+                                er_data.append(e)
+                                freq_data.append(nums[0] / (sum(nums)))
+                            self.spearman_coefficients[num_mutations][sample][m] = list(spearmanr(er_data, freq_data))
+
 
 # NGS ANALYSIS CLASS FOR LIBRARIES WITH DIFFERENT FRAMEWORKS/LENGTHS
 class multi_fr_ngs_analysis(ngs_analysis):
@@ -714,6 +848,11 @@ class multi_fr_ngs_analysis(ngs_analysis):
                 cc_dict[replicate] = common_rounds
             self.clone_set = common_clones(cc_dict)
 
+        #library = {'FR1': 
+        #                   {0: ['A', 'C', 'D], 1: ['I', 'L', 'V'], 2: ['P', 'R', 'K']},
+        #           'FR2': 
+        #                   {0: ['A', 'C', 'D], 1: ['I', 'L', 'V']},
+        # }
         self.library = {fr: {i:[] for i,_ in enumerate(seq)} for fr, seq in replicates[0].wt.items()}
         for fr, mut_dict in replicates[0].mutations_dict.items():
             for i, aa_sampled in mut_dict.items():
@@ -952,14 +1091,14 @@ def uncertainty_seq(In_count, Out_count, seq):
         score += ((1 / Out_count.loc[AA, i] + 1 / In_count.loc[AA, i]) / np.log(2))**2
     return np.sqrt(score)
 
-def generate_clone_set(ngs_round_data, samples, excluded_samples = None):
+def generate_clone_set(ngs_round_data, samples, excluded_samples = None, threshold = 0):
     clone_set = set()
     for r in samples:
-        clone_set = clone_set.union(common_clones({ngs_round_data: [r]}))
+        clone_set = clone_set.union(common_clones({ngs_round_data: [r]}, threshold))
 
     if excluded_samples is not None:
         for r in excluded_samples:
-            clone_set = clone_set - set(common_clones({ngs_round_data: [r]}))
+            clone_set = clone_set - set(common_clones({ngs_round_data: [r]}, threshold))
 
     clone_set_trimmed = []
     for seq in tqdm.tqdm(clone_set):

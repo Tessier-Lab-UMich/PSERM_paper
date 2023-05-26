@@ -5,6 +5,9 @@ Created on Mon Apr 29 2019
 
 @author: mduncans@umich.edu
 """
+# Replace the following two variables with paths to bbmerge and flash.
+BBMerge_path = '~/bbmap/bbmerge.sh'
+FLASH_path = '~/FLASH-1.2.11/flash'
 
 import os
 import re
@@ -84,7 +87,7 @@ class NGS_sample(object):
 		m = glob.glob('*merged*.fastq')
 		if len(m) == 0:
 			f = glob.glob('*.fastq')
-			os.system(f"~/FLASH-1.2.11/flash {f[0]} {f[1]} -M 301 -o merged_{f[0].split('_R')[0]}")
+			os.system(f"{FLASH_path} {f[0]} {f[1]} -M 301 -o merged_{f[0].split('_R')[0]}")
 
 	def run_bbmerge(self):
 		'''
@@ -104,13 +107,13 @@ class NGS_sample(object):
 		m = glob.glob('*merged.fastq')
 		if len(m) == 0:
 			f = glob.glob('*.fastq')
-			os.system(f"~/bbmap/bbmerge.sh in1={f[0]} in2={f[1]} out={re.sub('_R[1,2]_001.fastq', '_merged.fastq', f[0])} -qtrim=15") #outu={re.sub('_R[1,2]_001.fastq', '_unmerged.fastq', f[0])}
+			os.system(f"{BBMerge_path} in1={f[0]} in2={f[1]} out={re.sub('_R[1,2]_001.fastq', '_merged.fastq', f[0])} -qtrim=15") #outu={re.sub('_R[1,2]_001.fastq', '_unmerged.fastq', f[0])}
 			print('{} and {} successfully merged.'.format(f[0], f[1]))
 		else:
 			for fqm in m:
 				os.system('rm {}'.format(fqm))
 			f = glob.glob('*.fastq')
-			os.system(f"~/bbmap/bbmerge.sh in1={f[0]} in2={f[1]} out={re.sub('_R[1,2]_001.fastq', '_merged.fastq', f[0])} -qtrim=15") #outu={re.sub('_R[1,2]_001.fastq', '_unmerged.fastq', f[0])} 
+			os.system(f"{BBMerge_path} in1={f[0]} in2={f[1]} out={re.sub('_R[1,2]_001.fastq', '_merged.fastq', f[0])} -qtrim=15") #outu={re.sub('_R[1,2]_001.fastq', '_unmerged.fastq', f[0])} 
 			print('{} and {} successfully merged.'.format(f[0], f[1]))
 
 	def process_fasta_line(self, line):
