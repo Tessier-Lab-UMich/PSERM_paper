@@ -22,7 +22,7 @@ dependencies:
   - brotlipy=0.7.0=py310hca72f7f_1002
   - bzip2=1.0.8=h1de35cc_0
   - ca-certificates=2023.01.10=hecd8cb5_0
-  - certifi=2022.12.7=py310hecd8cb5_0
+  - certifi=2023.5.7=py310hecd8cb5_0
   - cffi=1.15.1=py310h6c40b1e_3
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
   - comm=0.1.2=py310hecd8cb5_0
@@ -33,6 +33,7 @@ dependencies:
   - decorator=5.1.1=pyhd3eb1b0_0
   - defusedxml=0.7.1=pyhd3eb1b0_0
   - entrypoints=0.4=py310hecd8cb5_0
+  - et_xmlfile=1.1.0=py310hecd8cb5_0
   - executing=0.8.3=pyhd3eb1b0_0
   - fonttools=4.25.0=pyhd3eb1b0_0
   - freetype=2.12.1=hd8bbffd_0
@@ -113,6 +114,7 @@ dependencies:
   - numexpr=2.8.4=py310h9638375_0
   - numpy=1.24.3=py310h9638375_0
   - numpy-base=1.24.3=py310ha98c3c9_0
+  - openpyxl=3.0.10=py310hca72f7f_0
   - openssl=1.1.1t=hca72f7f_0
   - packaging=23.0=py310hecd8cb5_0
   - pandas=1.5.3=py310h3ea8b11_0
