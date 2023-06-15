@@ -860,12 +860,20 @@ class multi_fr_ngs_analysis(ngs_analysis):
                     self.library[fr][i].append(aa)
         
         self.wt = replicates[0].wt
+        
         trimmed_clones = []
+        trimmed_clones_no_fr = []
+        trimmed_fr = []
+
         for c in self.clone_set:
             if '*' not in c:
                 trimmed_clones.append(c)
+                trimmed_clones_no_fr.append(c.split('_')[0])
+                trimmed_fr.append(c.split('_')[1])
         
         self.clone_set = trimmed_clones
+        self.fr_set = trimmed_fr
+        self.clone_set_no_fr = trimmed_clones_no_fr
         self.replicates = replicates
         self.common_rounds = common_rounds
         self.AA_order = ['F', 'W', 'Y', 'P', 'M', 'I', 'L', 'V', 'A', 'G', 'C', 'S', 'T', 'N', 'Q', 'D', 'E', 'H', 'K', 'R']
@@ -882,7 +890,6 @@ class multi_fr_ngs_analysis(ngs_analysis):
         for r in self.replicates:
             d = pd.DataFrame(r.data).fillna(0) * list(r.sample_counts.values())
             df.append(d.loc[:, self.common_rounds])
-        
 
         #find total counts of each sample to return to frequency
         for d in df:
@@ -897,17 +904,12 @@ class multi_fr_ngs_analysis(ngs_analysis):
 
         #remove clones that were not considered for analysis
         self.D = D.loc[self.clone_set, :].fillna(0)
+        self.D.index = self.clone_set_no_fr
         self.total_counts = total_counts
         self.samples = self.D.columns
         self.counts = self.D * self.total_counts
         
-        FR = []
-        for seq in self.D.index:
-            for fr, wt_seq in self.wt.items():
-                if len(seq) == len(wt_seq):
-                    FR.append(fr)
-                    break
-        self.D.loc[:, 'FR'] = FR
+        self.D.loc[:, 'FR'] = self.fr_set
 
     def generate_MSA(self):
         try:
@@ -981,7 +983,7 @@ class multi_fr_ngs_analysis(ngs_analysis):
 
             self.Counts[name] = Count_dict.fillna(0).reindex(self.AA_order)
             
-            N = self.Counts[name][0].sum() #each column will sum to same value.
+            N = np.array(self.Counts[name].sum()) #each column will sum to same value. not always true.
             if type(pseudocount) == str:
                 if pseudocount.lower() == 'proportional':
                     pseudocount = np.sqrt(N) 
@@ -1092,6 +1094,11 @@ def uncertainty_seq(In_count, Out_count, seq):
     return np.sqrt(score)
 
 def generate_clone_set(ngs_round_data, samples, excluded_samples = None, threshold = 0):
+    '''
+    Generate a set of clones from ngs_round_data that appear in all samples except for 
+    excluded_samples that are above the threshold.
+    '''
+    
     clone_set = set()
     for r in samples:
         clone_set = clone_set.union(common_clones({ngs_round_data: [r]}, threshold))
@@ -1099,7 +1106,6 @@ def generate_clone_set(ngs_round_data, samples, excluded_samples = None, thresho
     if excluded_samples is not None:
         for r in excluded_samples:
             clone_set = clone_set - set(common_clones({ngs_round_data: [r]}, threshold))
-
     clone_set_trimmed = []
     for seq in tqdm.tqdm(clone_set):
         if '*' not in seq:
@@ -1115,7 +1121,3 @@ def generate_clone_set(ngs_round_data, samples, excluded_samples = None, thresho
                         clone_set_trimmed.append(seq)
 
     return clone_set_trimmed
-
-
-
-    
