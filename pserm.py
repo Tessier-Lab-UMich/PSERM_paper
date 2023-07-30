@@ -278,6 +278,7 @@ class ngs_analysis(object):
             print('You already have computed scores')
         except:
             if fname.endswith('.csv'):
+                self.scores = pd.DataFrame()
                 self.scores = pd.read_csv(fname, index_col = 0)
             elif fname.endwith('.xlsx'):
                 self.scores = pd.read_excel(fname, index_col = 0)
@@ -334,7 +335,7 @@ class ngs_analysis(object):
             q = 2**q / sum(2**q)
             m = 1/2 * (p + q)
 
-            self.JS[sample][name].append(1/2 * self.KL_divergence(p, m) + self.KL_divergence(q, m))
+            self.JS[sample][name].append(1/2 * self.KL_divergence(p, m) + 1/2 * self.KL_divergence(q, m))
 
     def get_all_mut_JS_divergence_matrix(self, sample):
         ''' Still needs to be coded... '''
@@ -354,6 +355,7 @@ class ngs_analysis(object):
         for pos, aa_list in self.library.items():
             for aa in aa_list:
                 self.get_JS_divergence_pos(pos, aa, sample)
+
         if self.mutated_positions is not None:
             self.JS_data[sample] = pd.DataFrame.from_dict(self.JS[sample], orient = 'index', columns = self.mutated_positions)
         else:
@@ -1067,7 +1069,23 @@ class multi_fr_ngs_analysis(ngs_analysis):
             self.scores = pd.DataFrame.from_dict(shared_dict, orient = 'index', columns = [f'{s} {method} Score' for s in method_keys])
             
 
-        print(f"Done in {round((t2 - t1)/60, 2)} minutes")        
+        print(f"Done in {round((t2 - t1)/60, 2)} minutes")   
+    
+    def load_pssm(self, name, framework, fname, excel_or_csv = 'csv'):
+        if excel_or_csv == 'csv':
+            try:
+                self.PSSM[f'{name}_{framework}'] = pd.read_csv(f'{fname}', index_col = 0)
+                self.PSSM[f'{name}_{framework}'].columns = self.PSSM[f'{name}_{framework}'].columns.astype('int')
+            except:
+                self.PSSM = {name: pd.read_csv(f'{fname}', index_col = 0)}
+                self.PSSM[name].columns = self.PSSM[name].columns.astype('int')
+        else:
+            try:
+                self.PSSM[name] = pd.read_excel(f'{fname}', index_col = 0)
+                self.PSSM[name].columns = self.PSSM[name].columns.astype('int')
+            except:
+                self.PSSM = {name: pd.read_excel(f'{fname}', index_col = 0)}
+                self.PSSM[name].columns = self.PSSM[name].columns.astype('int')     
 
 # GENERAL FUNCTIONS
 def score_seq(PSSM, seq, ref_seq = None, ref_locs = None):
@@ -1106,6 +1124,7 @@ def generate_clone_set(ngs_round_data, samples, excluded_samples = None, thresho
     if excluded_samples is not None:
         for r in excluded_samples:
             clone_set = clone_set - set(common_clones({ngs_round_data: [r]}, threshold))
+
     clone_set_trimmed = []
     for seq in tqdm.tqdm(clone_set):
         if '*' not in seq:
